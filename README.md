@@ -1,60 +1,47 @@
-# 📝 Readme
+# 🤖 Auto-README Generator
 
 ## What This Project Does
 
-- **Generates portfolio-quality READMEs from any codebase.** Point it at a local repo and it produces a structured, opinionated README.md that explains architecture, tradeoffs, and limitations — not just usage.
-- **Respects your `.gitignore` automatically.** Uses `git ls-files` when available so it never wastes tokens on `node_modules`, build artifacts, or virtualenvs.
-- **Prioritizes the files that actually matter.** A scoring pass pushes entry points (`main.py`, `package.json`, `Dockerfile`) to the top of the prompt and trims low-signal files when the context budget is tight.
-- **Enforces a fixed README schema via prompt engineering.** The system+user prompt locks Claude into a 15-section template with badges, a Mermaid diagram, and an honest "Limitations" section — no marketing fluff.
+- **Generates portfolio-quality READMEs from any codebase.** Point it at a local repo and it produces a structured, opinionated README.md complete with badges, architecture diagrams, tech stack tables, and honest limitations sections.
+- **Respects your repo's conventions.** Uses `git ls-files` to honor `.gitignore`, prioritizes signal-heavy files (`package.json`, `pyproject.toml`, entry points), and skips noise like `node_modules` and `__pycache__`.
+- **Fits within model context budgets intelligently.** Sorts files by importance and depth, then packs them into a 200K-character window so the most relevant code reaches the model first.
+- **Produces consistent output via a tightly-specified prompt.** Rather than ask an LLM for "a good README," it enforces a 15-section structure with explicit rules for when to include diagrams, badges, and tables.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
-![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D97757?style=flat-square&logo=anthropic&logoColor=white)
+![Anthropic](https://img.shields.io/badge/Anthropic-Claude_Opus_4-D97757?style=flat-square&logo=anthropic&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 ## The Problem
 
-Most developers write bad READMEs — or no README at all. The friction is real: a good README requires you to step out of implementation mode, think about your project from a stranger's perspective, draw a diagram, list tradeoffs honestly, and follow some consistent structure. By the time the project works, the motivation to do all of that is gone.
+Writing a good README is harder than writing the code. Most developers either skip it entirely, paste in a generic template, or write three lines and a `pip install` and call it done. The result is a portfolio of repos that look unmaintained — even when the underlying code is solid. Existing README generators tend to produce shallow output: a title, a one-line description, and an auto-extracted dependency list. They miss the *narrative* part of a README — the "why does this exist," "what are the trade-offs," and "what would I change next" — which is exactly what hiring managers and curious engineers actually want to read.
 
-Existing tools fall into two unsatisfying buckets. Template generators (`readme-md-generator`, GitHub's built-in template) give you headings but no content — you still have to write everything. Generic "summarize my repo with AI" scripts produce shapeless prose that reads like marketing copy: lots of "robust" and "scalable," no diagrams, no honest limitations, no architecture. ReadmeForge sits in the middle: it reads the actual code, but it constrains the model to a strict schema that mimics what a senior engineer would write for their portfolio.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    A[CLI arg: repo path] --> B[generate.py\nmain entry]
-    B --> C[walk_repo\ngit ls-files + filters]
-    C --> D[file dict\npath: contents]
-    D --> E[build_context\nprioritize + budget]
-    E --> F[Prompt template\nsystem + user]
-    F --> G[Anthropic API\nclaude-opus-4]
-    G --> H[README.generated.md\nwritten to repo]
-```
+This project takes a different approach: instead of templating from metadata, it feeds the *actual source code* to a frontier LLM with a strict structural contract. The model has read enough open-source READMEs to know what good looks like; the trick is forcing it to produce that depth consistently, rather than reverting to marketing fluff or omitting hard sections like "Limitations."
 
 ## Tech Stack
 
 | Layer | Tool | Why |
-|-------|------|-----|
-| Language | Python 3.10+ | Standard for AI/LLM scripting; `pathlib` and `subprocess` make filesystem + git work trivial. |
-| LLM client | `anthropic` SDK | Direct access to Claude with a clean message API; the 200K context window is essential for whole-repo prompts. |
-| Model | `claude-opus-4-7` | Opus tier gives the writing quality needed for portfolio output; lighter models produce generic prose. |
-| Repo enumeration | `git ls-files` via `subprocess` | Free `.gitignore` compliance — no need to re-implement ignore rules. Falls back to `rglob` for non-git directories. |
-| Config | `python-dotenv` | Keeps `ANTHROPIC_API_KEY` out of source control without ceremony. |
-| Path handling | `pathlib` | Cross-platform path math and globbing without string concatenation. |
+|---|---|---|
+| Language | Python 3.10+ | Standard for LLM tooling; `pathlib` and `subprocess` are well-suited for repo traversal. |
+| LLM client | `anthropic` SDK | Direct access to Claude Opus 4, which handles long-context structured output reliably. |
+| Model | Claude Opus 4 | Long-context window (200K+) and strong instruction-following for multi-section structured generation. |
+| Config | `python-dotenv` | Loads `ANTHROPIC_API_KEY` from a local `.env` without committing secrets. |
+| File discovery | `git ls-files` via `subprocess` | Cheapest way to respect `.gitignore` without re-implementing parsing logic; falls back to `rglob` for non-git directories. |
+| Path handling | `pathlib` | Cross-platform, expressive path manipulation over raw `os.path`. |
 
 ## Quickstart
 
-1. **Prerequisites:** Python 3.10+, an Anthropic API key, and `git` on your PATH (optional but recommended).
+1. **Prerequisites:** Python 3.10+, an Anthropic API key, and (optionally) `git` installed for gitignore-aware file discovery.
 
-2. **Clone the repo:**
+2. **Clone and enter the repo:**
    ```bash
-   git clone https://github.com/yourname/readmeforge.git
-   cd readmeforge
+   git clone <this-repo-url>
+   cd auto-readme-generator
    ```
 
-3. **Create a virtualenv:**
+3. **Create a virtual environment:**
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   python -m venv venv
+   source venv/bin/activate   # On Windows: venv\Scripts\activate
    ```
 
 4. **Install dependencies:**
@@ -62,7 +49,7 @@ flowchart LR
    pip install anthropic python-dotenv
    ```
 
-5. **Set your API key:**
+5. **Configure your API key** by creating a `.env` file in the project root:
    ```bash
    echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
    ```
@@ -72,96 +59,93 @@ flowchart LR
    python generate.py ~/code/my-project
    ```
 
-7. **Read the output:** A file named `README.generated.md` will appear in the target repo's root. Review it, rename to `README.md` if you're happy, and commit.
+7. **Read the output** at `~/code/my-project/README.generated.md`. Rename to `README.md` if you're happy with it.
 
 ## Project Structure
 
 ```
-readmeforge/
-├── generate.py          # Single-file entry point: walks repo, builds prompt, calls Claude
-├── .env                 # ANTHROPIC_API_KEY (gitignored)
-└── README.md            # This file
+.
+├── generate.py        # The whole program: walks repo, packs context, calls Claude
+├── .env               # ANTHROPIC_API_KEY (you create this, gitignored)
+└── README.md          # This file (likely generated by generate.py itself)
 ```
 
-The entire tool is one file by design — there's no plugin system, no class hierarchy, no abstraction overhead. The interesting complexity lives in the prompt template, not the Python.
+This is a deliberately single-file project. Splitting it into modules (`walker.py`, `prompt.py`, `client.py`) would add ceremony without solving any real problem at this scale.
 
 ## How It Works
 
-### 1. Walking the repository (`walk_repo`)
+### Step 1: Discover relevant files with `walk_repo()`
 
-The function first tries `git ls-files --cached --others --exclude-standard`, which returns every tracked file plus every untracked-but-not-ignored file. This is the easiest way to honor `.gitignore` without parsing it ourselves. If the directory isn't a git repo, it falls back to `pathlib.Path.rglob("*")` and applies a hardcoded `SKIP_FOLDERS` set as a safety net.
+The function first tries `git ls-files --cached --others --exclude-standard`, which lists all tracked and untracked files while respecting `.gitignore`. This is far more reliable than re-implementing gitignore matching in Python. If the target isn't a git repo, it falls back to `pathlib.rglob("*")`. Each candidate path is then filtered by three rules: it must have an extension in `RELEVANT_EXTENSIONS` (code, config, and docs only), none of its path components can be in `SKIP_FOLDERS` (`node_modules`, `venv`, `dist`, etc.), and it must be under `MAX_FILE_SIZE` (50KB) to avoid stuffing huge lockfiles or generated bundles into the prompt.
 
-Each candidate path is then filtered three ways: extension must be in `RELEVANT_EXTENSIONS` (source code and config formats), no path component may be in `SKIP_FOLDERS` or start with a dot, and file size must be under `MAX_FILE_SIZE` (50KB). Anything that survives gets read as text with `errors="ignore"` so binary files or odd encodings don't crash the run.
+### Step 2: Prioritize and pack with `build_context()`
 
-### 2. Prioritizing files (`build_context`)
+The model's context is a finite budget, so file order matters. The `priority()` function gives priority `0` to a hand-picked list of high-signal filenames (`README.md`, `package.json`, `main.py`, `Dockerfile`, etc.) and `1 + depth` to everything else — meaning shallow files beat deep ones. Files are then concatenated in priority order, each wrapped in a `### File: path` header with a code fence, until the running character count hits `MAX_CONTEXT_CHARS` (200,000). Anything that doesn't fit is silently dropped, and the count is logged.
 
-Naively concatenating files would either blow the context budget or randomly omit important ones. So `build_context` sorts files by a priority tuple: anything whose filename is in `PRIORITY_FILENAMES` (entry points, manifests, Dockerfiles) gets priority 0, everything else gets `(1 + depth, path)`. The result is that root-level entry points come first, then shallow files, then deep utilities.
+| File category | Priority | Rationale |
+|---|---|---|
+| Manifest files (`package.json`, `pyproject.toml`) | Highest | Tell the model the tech stack immediately. |
+| Entry points (`main.py`, `index.ts`, `server.py`) | Highest | Reveal the program's shape in one read. |
+| Shallow files (root-level) | Medium | Usually more architecturally important than deep utilities. |
+| Deep files (`src/utils/helpers/x.py`) | Lowest | Implementation details; dropped first under budget pressure. |
 
-| Priority | What gets ranked here |
-|----------|-----------------------|
-| 0 | `README.md`, `package.json`, `pyproject.toml`, `main.py`, `Dockerfile`, etc. |
-| 1+depth | Everything else, with shallower paths winning |
+### Step 3: Generate with a structured prompt
 
-Files are then concatenated in priority order until `MAX_CONTEXT_CHARS` (200K) is exhausted. Anything that doesn't fit is dropped with a count printed to stdout, so you can see how much was truncated.
+The `SYSTEM_PROMPT` establishes voice ("senior engineer, confident but humble, concrete language"). The `USER_PROMPT_TEMPLATE` then enforces the 15-section README skeleton — including non-negotiables like a "Limitations & Drawbacks" section and rules like "skip the architecture diagram if it would only have 2-3 boxes." Giving the model an explicit decision rule for *when not to include something* turned out to matter more than telling it what to include. The call uses `claude-opus-4-7` with `max_tokens=8192`, which is enough headroom for a long README without truncation.
 
-### 3. Calling the model
+### Step 4: Write the output
 
-The system prompt is short — it just sets the voice ("senior software engineer, confident but humble, no marketing fluff"). The heavy lifting happens in the user prompt, which is a ~2KB template defining all 15 sections, their order, formatting rules (badges syntax, Mermaid block, table columns), and quality rules ("no placeholder text," "use REAL filenames"). The repo context is interpolated at the end.
-
-This is the key insight: the model already knows how to write every individual section of a good README. The prompt's job isn't to teach it, it's to *constrain* it into a consistent shape so the output looks like a deliberate document instead of LLM stream-of-consciousness.
-
-### 4. Writing the output
-
-The response text is written to `README.generated.md` inside the target repo (not the readmeforge directory). The `.generated` suffix is intentional — it prevents accidentally overwriting an existing README and signals to the user that this is a draft to review, not final output.
+The result is written to `README.generated.md` *next to* the source repo — never overwriting an existing `README.md`. This is a deliberate safety choice: the user reviews and renames manually.
 
 ## Configuration
 
+All tunables live as module-level constants at the top of `generate.py`:
+
 | Parameter | Default | Description |
-|-----------|---------|-------------|
-| `RELEVANT_EXTENSIONS` | `.py, .js, .ts, .tsx, .jsx, .md, .json, .toml, .yaml, .yml, .txt, .sh, .rs, .go, .rb, .java` | File types included in the prompt context. |
-| `MAX_FILE_SIZE` | `50_000` bytes | Skip individual files larger than this (lockfiles, generated code). |
-| `MAX_CONTEXT_CHARS` | `200_000` | Total character budget for repo content in the prompt. |
-| `SKIP_FOLDERS` | `node_modules, venv, dist, build, .git, ...` | Folders pruned during traversal. |
-| `PRIORITY_FILENAMES` | `README.md, package.json, main.py, ...` | Files pushed to the front of the prompt regardless of depth. |
-| Model | `claude-opus-4-7` | Anthropic model used; swap for Sonnet to cut cost ~5x. |
-| `max_tokens` | `8192` | Output ceiling — detailed READMEs typically run 2500-4000 tokens. |
+|---|---|---|
+| `RELEVANT_EXTENSIONS` | `.py, .js, .ts, .tsx, .jsx, .md, .json, .toml, .yaml, .yml, .txt, .sh, .rs, .go, .rb, .java` | File types included in the prompt. Add more for languages not listed. |
+| `MAX_FILE_SIZE` | `50_000` | Per-file byte cap. Files larger than this are skipped to avoid wasting context on lockfiles or generated bundles. |
+| `SKIP_FOLDERS` | `node_modules`, `venv`, `dist`, `.git`, etc. | Directories to never recurse into. |
+| `MAX_CONTEXT_CHARS` | `200_000` | Total character budget across all included files. Roughly matches Claude's effective input window for this use case. |
+| `PRIORITY_FILENAMES` | `README.md`, `package.json`, `main.py`, `Dockerfile`, etc. | Filenames promoted to the front of the context regardless of depth. |
+| `model` | `claude-opus-4-7` | The LLM. Swap for Sonnet to cut cost ~5x with modest quality drop. |
+| `max_tokens` | `8192` | Output cap. A full README with diagrams and tables usually lands around 4-6K tokens. |
 
 ## Advantages
 
-- **Single-file simplicity.** The entire tool is ~150 lines of Python with two dependencies. You can read it in five minutes and modify it for your own taste.
-- **Honors `.gitignore` for free.** By shelling out to `git ls-files`, ReadmeForge automatically skips whatever your repo already excludes — no parallel ignore configuration to maintain.
-- **Schema-locked output.** Because the prompt enforces an exact 15-section structure, every README from this tool looks deliberate and comparable, not like random LLM prose.
-- **Honest limitations section by default.** The prompt explicitly requires a "Limitations & Drawbacks" section with as many entries as the "Advantages" — this is what separates portfolio writing from marketing.
-- **Context-budget aware.** The priority-sort + char-budget pass means it works on large repos without silently truncating the most important files.
+- **Single-file, zero ceremony.** ~120 lines of Python, two dependencies, no framework, no config files. You can read the entire program in one sitting and modify it for your own conventions.
+- **Respects `.gitignore` natively.** By shelling out to `git ls-files`, it inherits whatever your team has already decided is noise, instead of relying on a fragile hand-rolled allowlist.
+- **Deterministic structure, creative content.** The prompt nails down section order and rules, but lets the model write the actual prose. You get consistency across repos without copy-pasted boilerplate.
+- **Honest by design.** The prompt explicitly requires a "Limitations & Drawbacks" section with the same length as "Advantages." This is the single biggest differentiator from typical AI-generated READMEs.
+- **Budget-aware.** Won't silently fail on huge repos — it logs how many files were included vs. skipped, so you can tell when output quality might suffer from missing context.
 
 ## Limitations & Drawbacks
 
-- **No incremental updates.** Each run regenerates the README from scratch. If you've hand-edited sections, your edits are lost — there's no diff/merge step.
-- **Single-shot prompt, no validation.** The output isn't parsed or checked. If Claude drops a section or hallucinates a filename, you only find out by reading the result. A production version would validate the markdown structure and retry missing sections.
-- **Char-budget is crude.** The 200K cap is measured in characters, not tokens, and doesn't account for the prompt template overhead. On dense code it slightly under-utilizes the context window; on sparse code it could theoretically overflow.
-- **Won't read binary or notebook files.** `.ipynb` notebooks, images, and proprietary formats are skipped entirely, so projects that live inside Jupyter get an incomplete picture.
-- **Opus is expensive.** A medium-sized repo run costs roughly $0.30–$1.00 per README. Batching across many repos adds up; switching to Sonnet would help but reduces writing quality noticeably.
-- **No retry or streaming.** A network hiccup mid-call loses the whole run. Production use would need `tenacity` retries and probably streaming output so the user sees progress.
+- **Costs real money per run.** Each invocation hits Claude Opus, which is the most expensive Anthropic model. A large repo (~150K input chars + 6K output) costs roughly $0.50-$1.00. Switching to Sonnet would help, but I haven't benchmarked the quality drop.
+- **Single-shot, no review loop.** The model gets one chance to produce the README. There's no agent loop, no "look at what you wrote and refine," and no validation that the markdown actually renders. For production use, I'd add a render-check pass.
+- **Naive context packing.** Files are included whole or not at all. A smarter version would summarize large files (e.g., extract function signatures) instead of dropping them entirely when over budget.
+- **No incremental updates.** Re-running on the same repo regenerates from scratch. If you've manually edited the generated README, your changes are lost. A diff-aware mode would be more useful for maintaining READMEs over time.
+- **Output quality varies with repo quality.** If the source code has no comments, generic variable names, and no `README.md` to learn the project's name from, the generated README will hallucinate a plausible-but-wrong project name and purpose. Garbage in, garbage out.
+- **Hardcoded model name.** `claude-opus-4-7` is baked into the call. When Anthropic deprecates it, this breaks. Should be an env var or CLI flag.
 
 ## What I Learned
 
-- **Prompt structure matters more than prompt length.** My first version was a vague "write a great README" — the output was forgettable. Locking in 15 numbered sections with explicit formatting rules produced dramatically better results from the same model.
-- **Asking the model for honest weaknesses requires explicit permission.** LLMs default to flattery. The prompt rule "equally many honest limitations" was the single highest-leverage change in the whole template.
-- **`git ls-files` is underrated.** I started by reimplementing `.gitignore` parsing and realized halfway through that git already does this perfectly. Shelling out was 4 lines and zero edge cases.
-- **Priority sorting beats summarization for context packing.** I considered summarizing each file before concatenating, but a simple priority-by-filename sort gave the model the right files in the right order with no preprocessing latency.
-- **One file is a feature.** I almost split this into `walker.py`, `prompt.py`, `client.py`. Keeping it as one file means anyone can fork it and tweak the prompt without learning my abstractions — which is the whole point for a tool like this.
+- **Prompt structure beats prompt length.** My first version was a vague "write a good README" prompt and produced generic output. Numbering the sections, giving examples of badge syntax, and adding explicit "skip this if X" rules improved output more than any amount of voice/tone guidance.
+- **Telling the model when *not* to do something is high-leverage.** The rule "skip the architecture diagram if you'd only have 2-3 boxes in a line" stopped the model from producing trivial diagrams that made simple projects look over-engineered. Negative instructions are underused.
+- **`git ls-files` is the cheapest possible .gitignore parser.** I started writing pathspec matching logic in Python before realizing I could just ask git itself. It's a good reminder that shelling out to the right tool beats reimplementing.
+- **Context packing order matters more than I expected.** When I sorted files alphabetically, the model would occasionally miss the project's purpose because `package.json` came after twenty utility files. Promoting manifest files to the front of the context fixed this without changing the budget.
+- **`max_tokens` is a silent failure mode.** My first runs cut off mid-section because I left `max_tokens` at the default 1024. The README looked fine until you scrolled to the bottom. Always set this explicitly for structured generation tasks.
 
 ## Roadmap
 
-- [ ] Validate generated markdown against the required schema and auto-retry missing sections
-- [ ] Add `--model` flag to switch between Opus, Sonnet, and Haiku from the CLI
-- [ ] Stream output to stdout while generating instead of waiting for the full response
-- [ ] Support `.ipynb` notebooks by extracting markdown + code cells
-- [ ] Add a `--merge` mode that preserves hand-edited sections via section-level diffing
-- [ ] Token-accurate budgeting using `tiktoken` or Anthropic's token counter
-- [ ] GitHub Action wrapper that regenerates READMEs on every push to `main`
-- [ ] Optional second pass that critiques and revises its own output
+- [ ] Add a `--model` CLI flag to switch between Opus and Sonnet for cost control
+- [ ] Implement smart file summarization (signatures only) when over context budget instead of hard-dropping files
+- [ ] Add a `--diff` mode that updates an existing README rather than regenerating from scratch
+- [ ] Validate generated markdown renders correctly (mermaid syntax, table alignment, code fence balance) before writing to disk
+- [ ] Support remote repos via `git clone` to a temp directory: `python generate.py https://github.com/user/repo`
+- [ ] Cache the file walk and prompt context so re-runs with prompt-only changes are cheap
+- [ ] Add a `--style` flag with presets (`portfolio`, `minimal`, `internal-tool`) that swap the user prompt template
 
 ## License
 
-MIT.
+MIT
